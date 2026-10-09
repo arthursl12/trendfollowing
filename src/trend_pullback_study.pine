@@ -1,0 +1,154 @@
+//@version=6
+indicator("Trend + Pullbacks (MA confluence study)", shorttitle = "TrendPB", overlay = true)
+
+// =====================================================================================
+//  Trend + Pullbacks: a moving-average confluence study
+// =====================================================================================
+//  Personal research project, for study purposes only. Not financial advice, no signals
+//  are promised, and nothing here executes orders.
+//
+//  What this script draws
+//    1. Three moving averages: EMA 9, SMA 20, SMA 200.
+//    2. Background layer 1: price above all three (green) or below all three (red).
+//    3. Background layer 2: layer 1 AND the same condition holds on the 4h, daily and
+//       weekly timeframes at once. It is drawn as a second, separate overlay.
+//    4. Pullback arrows: the first bar of a trend state after price was on the "wrong"
+//       side of the SMA 20 on the previous bar.
+//
+//  Background reading (concepts only, no code taken from any of it): swing-trading
+//  pullback ideas in the trend-following tradition (Dave Landry), Larry Williams, Stormer
+//  and QuantBrasil material. The rules below were NOT copied from those sources. They
+//  were reconstructed from observed behavior (see "How the rules were found").
+//
+// -------------------------------------------------------------------------------------
+//  How the rules were found (black box, no decompiling)
+// -------------------------------------------------------------------------------------
+//  The behavior was measured on B3 daily data (BBAS3, PETR4, USIM3), exported as OHLCV,
+//  against per-layer screenshots of the target chart. Each hypothesis was scored by the
+//  number of bars it got wrong, and was dropped as soon as a labeled bar contradicted it.
+//
+//  Discovery 1: layer 1 is exact and needs no parameters.
+//    close > EMA9 and close > SMA20 and close > SMA200 (and the mirror image for red).
+//    The red side needs close < SMA200 as well. An early version without it was wrong.
+//
+//  Discovery 2: the arrows can be written two equivalent ways.
+//    "trend state AND previous close was on the other side of SMA20"  (used here), or
+//    "trend state AND close crossed the SMA20 on this bar". With three-way agreement
+//    required, the two give identical bars, so the simpler form is used.
+//
+//  Discovery 3: there is no "strong versus weak" grading.
+//    I first modeled two intensities of green/red and spent a long time searching for a
+//    rule that separates them. Dead ends: price/MA conjunctions of up to 4 conditions,
+//    other price sources, MA ordering, EMA slope, Supertrend, RSI/ADX/DI, efficiency
+//    ratio, R-squared, choppiness, volume, weekday and month effects, and any rule
+//    built only from the three averages. The "darker" look is simply two semi-transparent
+//    layers (90% transparent each) stacking on the same bar. Layer 2 is therefore a
+//    separate condition, always a subset of layer 1.
+//
+//  Discovery 4: layer 2 is multi-timeframe confluence.
+//    Layer 2 is on when the 4h, daily and weekly trends all agree. My simulation from
+//    MT5 data predicted this early, but the first TradingView implementation showed no
+//    green layer at all. The cause is the next discovery.
+//
+//  Discovery 5 (the bug that hid the answer): Pine v6 `and` short-circuits.
+//    In v6, `a and b` does not evaluate `b` when `a` is false. If `b` contains a ta.*
+//    call (ta.sma, ta.ema, ...), that call is skipped on those bars, so its internal
+//    history has gaps and the average is silently wrong. Inside request.security this
+//    made the weekly SMA200 never satisfy the condition, so the weekly trend never
+//    turned on. The editor flags it with a "function should be called on each
+//    calculation" warning. The fix, used in f_up()/f_down() below, is to compute every
+//    ta.* value on its own line first, then compare.
+//
+//  Validation (details in the README)
+//    Layer 1 and the arrows matched on BBAS3, PETR4 and USIM3 daily bars. Layer 2 was
+//    checked by plotting each timeframe's trend in a separate pane and comparing it with
+//    the target's dark bands on USIM3.
+//
+// -------------------------------------------------------------------------------------
+//  Known limitations
+// -------------------------------------------------------------------------------------
+//  * Data vendors differ. MT5 and TradingView disagree slightly (dividend adjustment,
+//    bar construction for 4h). A bar whose close is within a cent or two of an average
+//    can flip between the two, so expect a few edge mismatches.
+//  * request.security() on the weekly timeframe with lookahead off only updates on the
+//    last bar of the week on historical data, and repaints on the live bar. Layer 2 can
+//    therefore change on the current bar. The arrows do NOT use it and do not repaint.
+//  * The weekly SMA200 needs about 200 weekly bars. On short histories layer 2 stays
+//    off for the opposite reason.
+//  * Layer 2 was verified on daily charts only. On other chart timeframes the chart's own
+//    trend is used for layer 1, and the three fixed timeframes for layer 2.
+// =====================================================================================
+
+// ---- Inputs --------------------------------------------------------------------------
+// The study itself has no tunable lengths on purpose: the averages are fixed, so the
+// output depends only on the current chart's candles. Only visibility is configurable.
+showLayer2 = input.bool(true, "Second background layer (4h + daily + weekly agree)")
+showArrows = input.bool(true, "Pullback arrows")
+
+// ---- Colors --------------------------------------------------------------------------
+// 90% transparency per layer. Two layers on the same bar stack to a visibly darker tint.
+greenBg = color.new(#4CAF50, 90)
+redBg   = color.new(#FF5252, 90)
+greenFg = color.new(#4CAF50, 0)
+redFg   = color.new(#FF5252, 0)
+
+// ---- Moving averages -----------------------------------------------------------------
+ema9   = ta.ema(close, 9)
+sma20  = ta.sma(close, 20)
+sma200 = ta.sma(close, 200)
+
+plot(ema9,   "EMA 9",   color = color.new(#FFEB3B, 0))
+plot(sma20,  "SMA 20",  color = color.new(#2962FF, 0))
+plot(sma200, "SMA 200", color = color.new(#FF9800, 0))
+
+// ---- Layer 1: trend state on the chart's own timeframe -------------------------------
+// ta.* values are computed above, outside any `and` chain, so they are evaluated on
+// every bar (see Discovery 5).
+bull = close > ema9 and close > sma20 and close > sma200
+bear = close < ema9 and close < sma20 and close < sma200
+
+// ---- Pullback arrows -----------------------------------------------------------------
+// Long : trend state is up now, and the previous close was below the previous SMA 20.
+// Short: trend state is down now, and the previous close was above the previous SMA 20.
+pullbackUp   = bull and close[1] < sma20[1]
+pullbackDown = bear and close[1] > sma20[1]
+
+// ---- Layer 2: multi-timeframe confluence ---------------------------------------------
+// Same trend rule, evaluated on other timeframes through request.security().
+// Every ta.* call is on its own line: required, because `and` short-circuits in Pine v6.
+f_up() =>
+    e = ta.ema(close, 9)
+    s = ta.sma(close, 20)
+    m = ta.sma(close, 200)
+    close > e and close > s and close > m
+
+f_down() =>
+    e = ta.ema(close, 9)
+    s = ta.sma(close, 20)
+    m = ta.sma(close, 200)
+    close < e and close < s and close < m
+
+up4h   = request.security(syminfo.tickerid, "240", f_up())
+up1d   = request.security(syminfo.tickerid, "D",   f_up())
+up1w   = request.security(syminfo.tickerid, "W",   f_up())
+down4h = request.security(syminfo.tickerid, "240", f_down())
+down1d = request.security(syminfo.tickerid, "D",   f_down())
+down1w = request.security(syminfo.tickerid, "W",   f_down())
+
+// Layer 2 is a subset of layer 1 by construction here. On a daily chart the daily term
+// equals layer 1 anyway, so the combination reduces to "4h and weekly also agree".
+strongBull = bull and up4h   and up1d   and up1w
+strongBear = bear and down4h and down1d and down1w
+
+// ---- Drawing -------------------------------------------------------------------------
+bgcolor(bull ? greenBg : na, title = "Background green (layer 1)")
+bgcolor(bear ? redBg   : na, title = "Background red (layer 1)")
+bgcolor(showLayer2 and strongBull ? greenBg : na, title = "Background green (layer 2, 4h+D+W)")
+bgcolor(showLayer2 and strongBear ? redBg   : na, title = "Background red (layer 2, 4h+D+W)")
+
+plotshape(showArrows and pullbackUp,   "Pullback uptrend",   shape.triangleup,   location.belowbar, greenFg, size = size.small)
+plotshape(showArrows and pullbackDown, "Pullback downtrend", shape.triangledown, location.abovebar, redFg,   size = size.small)
+
+// ---- Alerts (optional) ---------------------------------------------------------------
+alertcondition(pullbackUp,   "Pullback uptrend",   "Pullback uptrend on {{ticker}} ({{interval}})")
+alertcondition(pullbackDown, "Pullback downtrend", "Pullback downtrend on {{ticker}} ({{interval}})")
