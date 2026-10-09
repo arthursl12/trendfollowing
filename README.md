@@ -4,7 +4,9 @@ A Pine Script v6 study of a trend-following and pullback setup, built from three
 
 > Personal research project, for study purposes only. It is not a signal service, it does not execute orders, and nothing here is financial advice.
 
-![Overview](docs/images/overview.png)
+<p align="center">
+  <img src="docs/images/overview.png" alt="Overview" width="800">
+</p>
 
 ## Problem
 
@@ -47,23 +49,9 @@ The study has no tunable lengths on purpose. Its output depends only on the curr
 
 ## Method
 
-```text
-OHLCV export (MT5)     Screenshots (per-layer)
-        │                       │
-        └────────┬──────────────┘
-                 ▼
-     Labeled bars (on / off per layer, per day)
-                 │
-                 ▼
-     Hypothesis → compute on the data → count mismatches
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-   0 mismatches     any mismatch → discard or refine
-        │
-        ▼
-   Pine implementation → compare on TradingView → repeat
-```
+<p align="center">
+  <img src="docs/images/method.svg" alt="Method flow: OHLCV export and screenshots become labeled bars, then hypotheses are tested by counting mismatches" width="640">
+</p>
 
 1. Export daily OHLCV from MT5 for three tickers.
 2. Turn each layer of the target chart on by itself and read the background of every bar from the screenshots (pixel sampling at the gap beside each bar).

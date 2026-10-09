@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 490" width="760" height="490" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" role="img" aria-labelledby="t d">
+  <title id="t">Method flow</title>
+  <desc id="d">OHLCV export and screenshots become labeled bars. A hypothesis is computed on the data and mismatches are counted. Zero mismatches leads to a Pine implementation compared on TradingView, then repeat. Any mismatch discards or refines the hypothesis.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M0 0L10 5L0 10z" fill="#8b949e"/>
+    </marker>
+  </defs>
+  <g fill="none" stroke="#8b949e" stroke-width="2" marker-end="url(#a)">
+    <path d="M240 70V95H380V118"/>
+    <path d="M520 70V95H380"/>
+    <path d="M380 170V203"/>
+    <path d="M380 255V285H240V313"/>
+    <path d="M380 285H520V313"/>
+    <path d="M240 365V393"/>
+    <path d="M100 425H55V230H178"/>
+    <path d="M640 340H705V230H582" stroke-dasharray="6 4"/>
+  </g>
+  <g stroke-width="1.5" text-anchor="middle" fill="#1f2328">
+    <rect x="130" y="20" width="220" height="50" rx="8" fill="#ddf4ff" stroke="#54aeff"/>
+    <text x="240" y="50">OHLCV export (MT5)</text>
+    <rect x="410" y="20" width="220" height="50" rx="8" fill="#ddf4ff" stroke="#54aeff"/>
+    <text x="520" y="50">Screenshots (per layer)</text>
+    <rect x="200" y="120" width="360" height="50" rx="8" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="380" y="150">Labeled bars (on / off per layer, per day)</text>
+    <rect x="180" y="205" width="400" height="50" rx="8" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="380" y="235">Hypothesis → compute on data → count mismatches</text>
+    <rect x="120" y="315" width="240" height="50" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+    <text x="240" y="345">0 mismatches</text>
+    <rect x="400" y="315" width="240" height="50" rx="8" fill="#ffebe9" stroke="#ff8182"/>
+    <text x="520" y="345">Any mismatch: discard or refine</text>
+    <rect x="100" y="395" width="280" height="60" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+    <text x="240" y="420">Pine implementation</text>
+    <text x="240" y="440">→ compare on TradingView</text>
+  </g>
+  <g font-size="13" fill="#6e7781" text-anchor="middle">
+    <text x="42" y="330" transform="rotate(-90 42 330)">repeat</text>
+    <text x="725" y="330" transform="rotate(90 725 330)">retry</text>
+  </g>
+</svg>
