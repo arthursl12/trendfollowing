@@ -132,7 +132,7 @@ The editor flags this with a "function should be called on each calculation" war
 
 - Layer 1 and the arrows were checked against labeled daily bars on BBAS3, PETR4 and USIM3.
 - Layer 2 was checked by plotting each timeframe's trend in a separate pane and comparing it with the target's dark bands on USIM3.
-- Automated tests: none yet. A Python cross-check of the rules on raw OHLCV is on the roadmap.
+- Automated tests: `screener/tests` has unit tests for the Python port of the rules (synthetic data only). They do not compare against TradingView bars; that comparison is still on the roadmap.
 
 ## Current limitations
 
@@ -144,8 +144,10 @@ The editor flags this with a "function should be called on each calculation" war
 
 ## Roadmap
 
+- [x] Python port of the rules and a daily MT5 screener (`screener/`, see its README). Built, unit-tested on synthetic data.
+- [ ] Validate the Python port against the labeled TradingView bars (BBAS3, PETR4, USIM3) using MT5 CSV exports, then close the gaps in the 4h merge and weekly mapping.
 - [ ] Define the trade rules precisely: signal on close, entry on breakout of the signal bar, stop at the signal bar's extreme, targets from Fibonacci extensions.
-- [ ] Implement them as a Pine `strategy()` and as an independent Python backtest, and compare the two.
+- [ ] Implement them as a Pine `strategy()` and as an independent Python backtest (reusing `screener/rules.py`), and compare the two.
 - [ ] Model B3 costs, lot size and slippage. Use adjusted and unadjusted prices and report both.
 - [ ] Run an ablation: arrows alone, arrows with layer 2 as a filter, arrows with the weekly trend only.
 - [ ] Split the sample in time (in-sample and out-of-sample) and expand the ticker universe.
