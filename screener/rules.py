@@ -56,6 +56,26 @@ def merge_h4(h4: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
+def h4_from_intraday(bars: pd.DataFrame, drop_last_bar: bool = False) -> pd.DataFrame:
+    """Build TradingView-style B3 4h bars (two per day: 10:00-13:59 and 14:00-close) from finer bars.
+
+    drop_last_bar: drop the last bar of each day before aggregating. On B3 that bar carries the
+    closing auction, which TradingView's 4h bars do not include (the daily bar does), so the 4h
+    close is the last continuous-trading price. Found on USIM3: with the auction bar kept, two
+    layer 2 days came out wrong; dropping it matched the labeled bars exactly.
+    Use it for 1-minute data from MT5. Yahoo's hourly bars already end before the auction.
+    """
+    bars = bars.sort_index()
+    if drop_last_bar and len(bars):
+        is_last = bars.index.to_series().groupby(bars.index.normalize()).transform("max") == bars.index
+        bars = bars[~is_last.values]
+    part = np.where(bars.index.hour < 14, 0, 1)
+    g = bars.groupby([bars.index.normalize(), part]).agg(
+        {"open": "first", "high": "max", "low": "min", "close": "last"})
+    g.index = [pd.Timestamp(day) + pd.Timedelta(hours=10 if p == 0 else 14) for day, p in g.index]
+    return g.sort_index()
+
+
 def h4_state_per_day(h4: pd.DataFrame, allow_short_history: bool = False) -> pd.DataFrame:
     """4h trend flags, sampled at the last 4h bar of each day."""
     f = trend_flags(merge_h4(h4)["close"], allow_short_history)

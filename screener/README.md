@@ -63,7 +63,8 @@ python report.py --db screener.db --out report.html
 
 - Run it after the close, so the daily bar is final.
 - The weekly SMA200 needs about 200 weekly bars. The script asks MT5 for 400. If your broker has less history, layer 2 will stay off.
-- MT5 H4 bars on B3 come as three per day. The last two are merged to mimic TradingView's two 4h bars, so a few edge bars can differ from TradingView.
+- **4h bars (layer 2).** MT5's own H4 bars are not used. They are rebuilt from 1-minute bars as two per day (10:00-13:59 and 14:00-close), **dropping the last 1-minute bar of each day**, which carries the closing auction. TradingView's 4h bars on B3 end on the last continuous-trading price, while the daily bar and MT5's H4 bars include the auction. Keeping it flipped two layer 2 days on USIM3; dropping it matched all 12 labeled days. This needs about 100 trading days of 1-minute history; if the broker has less, the MT5 source fails and `auto` falls back to Yahoo Finance.
+- CSV exports of MT5 H4 bars cannot be fixed this way (the auction is already inside them), so `--source csv` keeps the older "merge the last two of three" approximation for 4h.
 - Data from MT5 and TradingView can differ slightly (adjustments), so a close within a cent or two of an average can flip.
 - Research tool, not financial advice.
 

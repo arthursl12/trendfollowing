@@ -145,7 +145,7 @@ The editor flags this with a "function should be called on each calculation" war
 ## Roadmap
 
 - [x] Python port of the rules and a daily MT5 screener (`screener/`, see its README). Built, unit-tested on synthetic data.
-- [ ] Validate the Python port against the labeled TradingView bars (BBAS3, PETR4, USIM3) using MT5 CSV exports, then close the gaps in the 4h merge and weekly mapping.
+- [ ] Validate the Python port against the labeled TradingView bars. Done for USIM3 (2026-09-15 to 09-30, layer 1, arrows and layer 2 all match, after rebuilding 4h bars without the closing auction). Still to do: BBAS3 and PETR4, and a longer window.
 - [ ] Define the trade rules precisely: signal on close, entry on breakout of the signal bar, stop at the signal bar's extreme, targets from Fibonacci extensions.
 - [ ] Implement them as a Pine `strategy()` and as an independent Python backtest (reusing `screener/rules.py`), and compare the two.
 - [ ] Model B3 costs, lot size and slippage. Use adjusted and unadjusted prices and report both.

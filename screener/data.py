@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import os
 import pandas as pd
+from rules import h4_from_intraday
 
 _TF_MT5 = {"D1": "TIMEFRAME_D1", "W1": "TIMEFRAME_W1", "H4": "TIMEFRAME_H4"}
 
@@ -25,12 +26,37 @@ class MT5Provider:
     def get(self, symbol: str, tf: str, bars: int) -> pd.DataFrame:
         mt5 = self.mt5
         mt5.symbol_select(symbol, True)  # make sure the symbol is in Market Watch
+        if tf == "H4":
+            return self._h4_from_m1(symbol, bars)
         rates = mt5.copy_rates_from_pos(symbol, getattr(mt5, _TF_MT5[tf]), 0, bars)
         if rates is None or len(rates) == 0:
             raise ValueError(f"No {tf} data for {symbol}: {mt5.last_error()}")
         df = pd.DataFrame(rates)
         df["time"] = pd.to_datetime(df["time"], unit="s")
         return df.set_index("time")[["open", "high", "low", "close"]]
+
+    # MT5 caps one request around 60k bars. About 100 trading days are needed for the 4h SMA200,
+    # and a 4h bar is built from ~420 one-minute bars, so 60k covers it with margin.
+    _M1_BARS = 60_000
+    _MIN_H4_BARS = 220
+
+    def _h4_from_m1(self, symbol: str, bars: int) -> pd.DataFrame:
+        """TradingView-like 4h bars from 1-minute data, without the closing auction (see rules.h4_from_intraday).
+
+        MT5's own H4 bars (3 per day, auction included) gave wrong layer 2 days on USIM3.
+        Raises if the broker has too little 1-minute history for a 4h SMA200, so an all-or-nothing
+        caller can fall back to another source instead of silently turning layer 2 off.
+        """
+        mt5 = self.mt5
+        rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, self._M1_BARS)
+        if rates is None or len(rates) == 0:
+            raise ValueError(f"No M1 data for {symbol}: {mt5.last_error()}")
+        df = pd.DataFrame(rates)
+        df["time"] = pd.to_datetime(df["time"], unit="s")
+        h4 = h4_from_intraday(df.set_index("time")[["open", "high", "low", "close"]], drop_last_bar=True)
+        if len(h4) < self._MIN_H4_BARS:
+            raise ValueError(f"Only {len(h4)} 4h bars for {symbol} from M1 history; need {self._MIN_H4_BARS}")
+        return h4.tail(bars)
 
     def close(self):
         self.mt5.shutdown()
@@ -41,8 +67,8 @@ class YFinanceProvider:
 
     Differences from MT5 worth knowing:
       * prices are unadjusted closes, but Yahoo's history can still differ from the broker's;
-      * Yahoo has no 4h bars, so they are built from 1h bars, two per day (10:00-13:59 and 14:00-close),
-        which approximates TradingView's B3 4h bars;
+      * Yahoo has no 4h bars, so they are built from 1h bars, two per day (10:00-13:59 and 14:00-close);
+        its hourly bars end before the closing auction, like TradingView's 4h bars;
       * 1h history is limited to about 730 days.
     """
 
@@ -76,11 +102,7 @@ class YFinanceProvider:
         if tf == "W1":
             return self._download(symbol, "1wk", "max").tail(bars)
         h1 = self._download(symbol, "1h", "730d")
-        part = pd.Series(["am" if t.hour < 14 else "pm" for t in h1.index], index=h1.index)
-        g = h1.groupby([h1.index.normalize(), part.values])
-        out = g.agg({"open": "first", "high": "max", "low": "min", "close": "last"})
-        out.index = [pd.Timestamp(day) + pd.Timedelta(hours=10 if p == "am" else 14) for day, p in out.index]
-        return out.sort_index().tail(bars)
+        return h4_from_intraday(h1).tail(bars)
 
     def close(self):
         pass

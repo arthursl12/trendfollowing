@@ -19,7 +19,9 @@ There is no build or lint tooling. The Pine script is run by pasting it into the
 - `rules.py` is a pure-pandas mirror of the Pine rules (no I/O); `data.py` has the MT5 and CSV providers; `screener.py` is the CLI.
 - **The Pine script is the source of truth.** Any rule change goes into the Pine first, then `rules.py`, and the tests must stay green.
 - The same 9/20/200 fixed-length and "arrows independent of layer 2" constraints below apply to the port.
-- Known approximations: the 4h bars are rebuilt by merging the last two of three MT5 H4 bars per day, and weekly values are mapped onto daily bars to imitate `request.security()` with lookahead off. Not yet validated against TradingView labeled bars.
+- `store.py` (SQLite snapshots, day-over-day changes) and `report.py` (static HTML dashboard) sit on top of the screener. `--source auto` uses MT5 and, if it cannot deliver every symbol, Yahoo Finance for all of them; a screen never mixes sources.
+- 4h bars (layer 2) are rebuilt from 1-minute (MT5) or 1-hour (Yahoo) bars as two per day with the closing auction excluded, because TradingView's B3 4h bars do not include it (`rules.h4_from_intraday`). MT5's native H4 bars gave wrong layer 2 days. Weekly values are mapped onto daily bars to imitate `request.security()` with lookahead off.
+- Validated against TradingView labeled bars on USIM3 only (12 days, 2026-09-15 to 09-30, all matching). Layer 1 and arrows on BBAS3 and PETR4 are validated in the Pine study, not yet for the Python port.
 
 ## Constraints to preserve
 

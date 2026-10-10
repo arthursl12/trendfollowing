@@ -52,3 +52,16 @@ def test_weekly_value_updates_only_on_last_day_of_week():
     # first week has no previous completed week: False until Friday
     assert not res["up"].iloc[0:4].any()
     assert list(res.columns) == ["up", "dn"]
+
+
+def test_h4_from_intraday_two_bars_per_day_and_drops_auction_bar():
+    from rules import h4_from_intraday
+    idx = pd.to_datetime(["2026-09-21 10:05", "2026-09-21 13:59", "2026-09-21 14:00", "2026-09-21 16:50",
+                          "2026-09-21 16:54"])
+    m1 = pd.DataFrame({"open": [6.0, 6.1, 6.2, 6.5, 6.5], "high": [6.1, 6.2, 6.3, 6.6, 6.7],
+                       "low": [5.9, 6.0, 6.1, 6.4, 6.4], "close": [6.1, 6.2, 6.3, 6.51, 6.61]}, index=idx)
+    keep = h4_from_intraday(m1)
+    assert list(keep.index.hour) == [10, 14] and keep["close"].iloc[-1] == 6.61
+    drop = h4_from_intraday(m1, drop_last_bar=True)
+    assert drop["close"].iloc[-1] == 6.51 and drop["high"].iloc[-1] == 6.6
+    assert drop["open"].iloc[0] == 6.0 and drop["close"].iloc[0] == 6.2
