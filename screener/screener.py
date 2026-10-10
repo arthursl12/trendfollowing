@@ -33,6 +33,7 @@ def summarize(symbol: str, t: pd.DataFrame) -> dict:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--source", choices=["mt5", "csv"], default="mt5")
+    p.add_argument("--mt5-path", help="full path to terminal64.exe (when several MT5 terminals are installed)")
     p.add_argument("--folder", help="folder with exported CSVs (csv source)")
     p.add_argument("--symbols", nargs="*", default=[])
     p.add_argument("--symbols-file", help="text file with one ticker per line")
@@ -51,7 +52,7 @@ def main():
     if not symbols:
         raise SystemExit("Give --symbols or --symbols-file")
 
-    src = MT5Provider() if a.source == "mt5" else CsvProvider(a.folder or ".")
+    src = MT5Provider(a.mt5_path) if a.source == "mt5" else CsvProvider(a.folder or ".")
     rows, errors = [], []
     try:
         for s in symbols:

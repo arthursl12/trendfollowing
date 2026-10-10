@@ -10,14 +10,14 @@ _TF_MT5 = {"D1": "TIMEFRAME_D1", "W1": "TIMEFRAME_W1", "H4": "TIMEFRAME_H4"}
 class MT5Provider:
     """Reads bars from a running MetaTrader 5 terminal (Windows only)."""
 
-    def __init__(self):
+    def __init__(self, path: str | None = None):
         try:
             import MetaTrader5 as mt5
         except ImportError as e:
             raise SystemExit("MetaTrader5 package not found. Install it with: pip install MetaTrader5 "
                              "(Windows only, and the MT5 terminal must be installed and logged in).") from e
         self.mt5 = mt5
-        if not mt5.initialize():
+        if not (mt5.initialize(path=path) if path else mt5.initialize()):
             raise SystemExit(f"Could not connect to the MT5 terminal: {mt5.last_error()}")
 
     def get(self, symbol: str, tf: str, bars: int) -> pd.DataFrame:

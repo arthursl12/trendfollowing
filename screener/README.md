@@ -30,6 +30,7 @@ Put one ticker per line in a text file and use `--symbols-file tickers.txt` for 
 
 ## Options
 
+- `--mt5-path PATH`: full path to `terminal64.exe`, needed when several MT5 terminals are installed, e.g. `--mt5-path "C:\Program Files\MetaTrader 5\terminal64.exe"`. The terminal must be open and logged in.
 - `--weekly-mode live` (default): the last daily bar uses the developing weekly bar, like a live chart. `completed` uses only finished weeks, which is what to use for backtests.
 - `--history TICKER`: print the whole per-day table for one symbol, for checking against a chart.
 - `--source csv --folder DIR`: read exported MT5 CSV files instead of a live terminal (useful on non-Windows machines and for checking).
