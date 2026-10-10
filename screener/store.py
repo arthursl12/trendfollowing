@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS bars (
 CREATE TABLE IF NOT EXISTS snapshots (
     asof TEXT NOT NULL, symbol TEXT NOT NULL,
     close REAL, trend_l1 TEXT, trend_l2 TEXT, pullback_today TEXT,
-    bars_since_pullback INTEGER, last_pullback TEXT, dist_sma20_pct REAL,
+    bars_since_pullback INTEGER, last_pullback TEXT, dist_sma20_pct REAL, source TEXT,
     PRIMARY KEY (asof, symbol)
 );
 """
@@ -33,6 +33,9 @@ def connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(snapshots)")}
+    if "source" not in cols:  # database created before sources were recorded
+        conn.execute("ALTER TABLE snapshots ADD COLUMN source TEXT")
     return conn
 
 
@@ -40,7 +43,8 @@ def _num(v):
     return None if pd.isna(v) else float(v)
 
 
-def save(conn: sqlite3.Connection, symbol: str, table: pd.DataFrame, summary: dict) -> None:
+def save(conn: sqlite3.Connection, symbol: str, table: pd.DataFrame, summary: dict,
+         source: str | None = None) -> None:
     """Store one symbol's run: replace its bars and upsert today's snapshot row.
 
     `table` is the output of rules.analyze(); `summary` is screener.summarize() for the same run.
@@ -54,10 +58,10 @@ def save(conn: sqlite3.Connection, symbol: str, table: pd.DataFrame, summary: di
         conn.execute("DELETE FROM bars WHERE symbol = ?", (symbol,))
         conn.executemany(f"INSERT INTO bars VALUES (?, ?, {', '.join('?' * len(BAR_COLS))})", rows)
         conn.execute(
-            "INSERT OR REPLACE INTO snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (summary["date"], symbol, summary["close"], summary["trend_L1"], summary["trend_L2"],
              summary["pullback_today"], summary["bars_since_pullback"], summary["last_pullback"],
-             summary["dist_sma20_pct"]))
+             summary["dist_sma20_pct"], source))
 
 
 def latest_asof(conn: sqlite3.Connection) -> str | None:
@@ -70,6 +74,8 @@ def _change_list(cur: sqlite3.Row, prev: sqlite3.Row | None) -> list[dict]:
     if cur["pullback_today"] != "-":
         out.append({"kind": "arrow", "text": f"Arrow {cur['pullback_today']}"})
     if prev is not None:
+        if cur["source"] and prev["source"] and cur["source"] != prev["source"]:
+            out.append({"kind": "source", "text": f"Source {prev['source']} \u2192 {cur['source']}"})
         for kind, col, label in (("l2", "trend_l2", "L2"), ("l1", "trend_l1", "L1")):
             if cur[col] != prev[col]:
                 was = "none" if prev[col] == "-" else prev[col]

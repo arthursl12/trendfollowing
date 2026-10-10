@@ -48,12 +48,10 @@ def test_rerun_same_day_overwrites_instead_of_duplicating(tmp_path):
 
 def test_changes_compare_with_previous_stored_snapshot(tmp_path):
     conn = store.connect(str(tmp_path / "s.db"))
-    base = dict(close=10.0, trend_L1="UP", trend_L2="UP", pullback_today="-",
-                bars_since_pullback=3, last_pullback="2026-01-01", dist_sma20_pct=1.0)
     for asof, l1, l2, pb in (("2026-01-02", "UP", "UP", "-"), ("2026-01-05", "UP", "-", "-"),
                              ("2026-01-06", "-", "-", "UP")):
-        conn.execute("INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?)",
-                     (asof, "AAA3", 10.0, l1, l2, pb, 3, "2026-01-01", 1.0))
+        conn.execute("INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (asof, "AAA3", 10.0, l1, l2, pb, 3, "2026-01-01", 1.0, None))
     r = store.snapshot_with_changes(conn, "2026-01-05")[0]
     assert r["prev_asof"] == "2026-01-02"
     assert [c["text"] for c in r["changes"]] == ["L2 UP → none"]
@@ -81,3 +79,24 @@ def test_report_without_snapshots_exits(tmp_path):
     store.connect(str(tmp_path / "e.db")).close()
     with pytest.raises(SystemExit):
         report.build(str(tmp_path / "e.db"))
+
+
+def test_changes_flag_a_source_switch(tmp_path):
+    conn = store.connect(str(tmp_path / "s.db"))
+    for asof, src in (("2026-01-02", "mt5"), ("2026-01-05", "yfinance")):
+        conn.execute("INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (asof, "AAA3", 10.0, "UP", "UP", "-", 3, "2026-01-01", 1.0, src))
+    r = store.snapshot_with_changes(conn, "2026-01-05")[0]
+    assert [(c["kind"], c["text"]) for c in r["changes"]] == [("source", "Source mt5 → yfinance")]
+
+
+def test_old_database_without_source_column_is_migrated(tmp_path):
+    import sqlite3
+    path = str(tmp_path / "old.db")
+    raw = sqlite3.connect(path)
+    raw.execute("CREATE TABLE snapshots (asof TEXT, symbol TEXT, close REAL, trend_l1 TEXT, trend_l2 TEXT, "
+                "pullback_today TEXT, bars_since_pullback INTEGER, last_pullback TEXT, dist_sma20_pct REAL, "
+                "PRIMARY KEY (asof, symbol))")
+    raw.commit(); raw.close()
+    conn = store.connect(path)
+    assert "source" in {r[1] for r in conn.execute("PRAGMA table_info(snapshots)")}

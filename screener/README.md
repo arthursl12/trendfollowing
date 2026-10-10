@@ -13,7 +13,7 @@ MT5 terminal ──► MetaTrader5 package ──► rules.py ──► table (c
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python screener.py --source mt5 --symbols PETR4 VALE3 BBAS3
+python screener.py --symbols PETR4 VALE3 BBAS3
 ```
 
 Put one ticker per line in a text file and use `--symbols-file tickers.txt` for longer lists. Add `--out results.csv` to save the table.
@@ -31,6 +31,15 @@ python report.py --db screener.db --out report.html
 - The **Changes** column compares with the symbol's previous stored snapshot (arrow fired, layer 1 or layer 2 entered or left), so run the screener once per day after the close.
 - Click a symbol for the price chart with EMA9, SMA20, SMA200, layer 1 and 2 shading, arrows, a per-day state strip and a data table.
 - Re-running on the same as-of date overwrites that day's snapshot (the live bar can still move).
+
+## Data sources
+
+`--source auto` (the default) tries MT5 first and falls back to Yahoo Finance (`yfinance`). It is **all or nothing**: if MT5 cannot start, or misses even one symbol, every symbol is re-fetched from Yahoo Finance and the MT5 results are discarded. A screen never mixes sources, because the two vendors' numbers differ slightly. Force one with `--source mt5`, `--source yfinance` or `--source csv`.
+
+- The source is stored with each snapshot and shown in the report header. If the source changes between two runs, the Changes column says so, since a flip may then come from the data and not the market.
+- Yahoo has no 4h bars, so they are built from 1h bars, two per day (10:00 to 13:59, and 14:00 to close). This approximates TradingView's B3 4h bars.
+- Yahoo's 1h history is about 730 days, enough for the 4h SMA200.
+- Differences are real. On 2026-10-09 the layer states matched on all 10 tickers tested, but the last arrow differed on 2 of them (for example PETR4: a close of 47.99 on MT5 against 48.07 on Yahoo put it on opposite sides of the SMA20 on 2026-09-25).
 
 ## Output columns
 

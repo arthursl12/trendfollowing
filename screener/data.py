@@ -10,6 +10,8 @@ _TF_MT5 = {"D1": "TIMEFRAME_D1", "W1": "TIMEFRAME_W1", "H4": "TIMEFRAME_H4"}
 class MT5Provider:
     """Reads bars from a running MetaTrader 5 terminal (Windows only)."""
 
+    name = "mt5"
+
     def __init__(self, path: str | None = None):
         try:
             import MetaTrader5 as mt5
@@ -34,9 +36,60 @@ class MT5Provider:
         self.mt5.shutdown()
 
 
+class YFinanceProvider:
+    """Reads bars from Yahoo Finance (B3 tickers get the .SA suffix). Backup for when MT5 is not available.
+
+    Differences from MT5 worth knowing:
+      * prices are unadjusted closes, but Yahoo's history can still differ from the broker's;
+      * Yahoo has no 4h bars, so they are built from 1h bars, two per day (10:00-13:59 and 14:00-close),
+        which approximates TradingView's B3 4h bars;
+      * 1h history is limited to about 730 days.
+    """
+
+    name = "yfinance"
+
+    def __init__(self):
+        try:
+            import yfinance
+        except ImportError as e:
+            raise SystemExit("yfinance package not found. Install it with: pip install yfinance") from e
+        self.yf = yfinance
+
+    @staticmethod
+    def _ticker(symbol: str) -> str:
+        return symbol if "." in symbol else f"{symbol}.SA"
+
+    def _download(self, symbol: str, interval: str, period: str) -> pd.DataFrame:
+        df = self.yf.download(self._ticker(symbol), period=period, interval=interval,
+                              auto_adjust=False, progress=False, threads=False)
+        if df is None or len(df) == 0:
+            raise ValueError(f"No {interval} data for {self._ticker(symbol)} from Yahoo Finance")
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df = df.rename(columns=str.lower)[["open", "high", "low", "close"]].dropna()
+        df.index = pd.DatetimeIndex(df.index).tz_localize(None)
+        return df
+
+    def get(self, symbol: str, tf: str, bars: int) -> pd.DataFrame:
+        if tf == "D1":
+            return self._download(symbol, "1d", "max").tail(bars)
+        if tf == "W1":
+            return self._download(symbol, "1wk", "max").tail(bars)
+        h1 = self._download(symbol, "1h", "730d")
+        part = pd.Series(["am" if t.hour < 14 else "pm" for t in h1.index], index=h1.index)
+        g = h1.groupby([h1.index.normalize(), part.values])
+        out = g.agg({"open": "first", "high": "max", "low": "min", "close": "last"})
+        out.index = [pd.Timestamp(day) + pd.Timedelta(hours=10 if p == "am" else 14) for day, p in out.index]
+        return out.sort_index().tail(bars)
+
+    def close(self):
+        pass
+
+
 class CsvProvider:
     """Reads MT5 'export bars' CSV files (tab separated), e.g. USIM3_Daily_*.csv, USIM3_H4_*.csv."""
 
+    name = "csv"
     _NAME = {"D1": "Daily", "W1": "Weekly", "H4": "H4"}
 
     def __init__(self, folder: str):

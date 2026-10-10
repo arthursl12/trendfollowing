@@ -132,6 +132,7 @@ const svg = (tag, attrs) => {
 };
 const fmt = (v, d = 2) => v == null ? '–' : v.toFixed(d);
 
+const real = r => r.changes.filter(c => c.kind !== 'source');
 const state = { trend: 'all', changedOnly: false, open: null };
 const GROUPS = [
   ['Arrow today', r => r.pullback_today !== '-'],
@@ -159,7 +160,7 @@ function render() {
   tbl.append(el('thead', {}, head));
   const body = el('tbody');
   let rows = D.rows.filter(r =>
-    (state.trend === 'all' || r.trend_l1 === state.trend) && (!state.changedOnly || r.changes.length));
+    (state.trend === 'all' || r.trend_l1 === state.trend) && (!state.changedOnly || real(r).length));
   if (!rows.length) {
     document.getElementById('tbl').replaceChildren(el('tbody', {}, el('tr', {},
       el('td', { class: 'empty', text: 'No symbols match the current filters.' }))));
@@ -322,9 +323,9 @@ function detail(sym) {
 // ---- header + filters --------------------------------------------------------------------
 const arrows = D.rows.filter(r => r.pullback_today !== '-').length;
 const l2 = D.rows.filter(r => r.trend_l2 !== '-').length;
-const changed = D.rows.filter(r => r.changes.length).length;
+const changed = D.rows.filter(r => real(r).length).length;
 document.getElementById('sub').textContent =
-  `As of ${D.asof} · ${D.rows.length} symbols · ${arrows} arrow${arrows === 1 ? '' : 's'} today · ` +
+  `As of ${D.asof} · data: ${D.source || 'unknown'} · ${D.rows.length} symbols · ${arrows} arrow${arrows === 1 ? '' : 's'} today · ` +
   `${l2} in layer 2 · ${changed} changed since previous run`;
 document.querySelectorAll('#trendFilter button').forEach(b => b.onclick = () => {
   state.trend = b.dataset.v;
@@ -347,7 +348,7 @@ def build(db_path: str, n_bars: int = 120, asof: str | None = None) -> str:
         if not rows:
             raise SystemExit(f"No snapshots in {db_path}. Run screener.py with --db first.")
         data = {
-            "asof": rows[0]["asof"], "n": n_bars, "rows": rows,
+            "asof": rows[0]["asof"], "source": rows[0].get("source"), "n": n_bars, "rows": rows,
             "bars": {r["symbol"]: store.bars_for(conn, r["symbol"], n_bars) for r in rows},
         }
     finally:
