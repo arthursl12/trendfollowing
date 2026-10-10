@@ -10,6 +10,7 @@ import argparse
 import pandas as pd
 from data import MT5Provider, CsvProvider
 from rules import analyze
+import store
 
 
 def summarize(symbol: str, t: pd.DataFrame) -> dict:
@@ -38,6 +39,7 @@ def main():
     p.add_argument("--symbols", nargs="*", default=[])
     p.add_argument("--symbols-file", help="text file with one ticker per line")
     p.add_argument("--out", help="write results to this CSV")
+    p.add_argument("--db", help="SQLite file to store bars and today's snapshot (feeds report.py)")
     p.add_argument("--weekly-mode", choices=["live", "completed"], default="live")
     p.add_argument("--allow-short-history", action="store_true",
                    help="ignore a missing SMA200 (validation on short samples only)")
@@ -52,6 +54,7 @@ def main():
     if not symbols:
         raise SystemExit("Give --symbols or --symbols-file")
 
+    conn = store.connect(a.db) if a.db else None
     src = MT5Provider(a.mt5_path) if a.source == "mt5" else CsvProvider(a.folder or ".")
     rows, errors = [], []
     try:
@@ -65,9 +68,14 @@ def main():
             if a.history:
                 print(t[["close", "up", "dn", "pb_up", "pb_dn", "l2_up", "l2_dn"]].to_string())
                 return
-            rows.append(summarize(s, t))
+            row = summarize(s, t)
+            rows.append(row)
+            if conn:
+                store.save(conn, s, t, row)
     finally:
         src.close()
+        if conn:
+            conn.close()
 
     if rows:
         df = pd.DataFrame(rows).sort_values(["pullback_today", "trend_L2", "trend_L1"], ascending=False)

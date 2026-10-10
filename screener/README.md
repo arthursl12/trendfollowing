@@ -18,6 +18,20 @@ python screener.py --source mt5 --symbols PETR4 VALE3 BBAS3
 
 Put one ticker per line in a text file and use `--symbols-file tickers.txt` for longer lists. Add `--out results.csv` to save the table.
 
+## Dashboard (static report)
+
+```bash
+python screener.py --source mt5 --mt5-path "C:\Program Files\MetaTrader 5\terminal64.exe" --symbols-file tickers.txt --db screener.db
+python report.py --db screener.db --out report.html
+```
+
+`--db` stores each run in SQLite (`store.py`): the last 260 daily bars per symbol, plus one snapshot row per symbol and as-of date. `report.py` turns the latest snapshot into one self-contained HTML file with no server and no network. Open it in a browser.
+
+- The table is grouped by what matters (arrow today, layer 2 aligned, layer 1 trend, no trend) and filterable.
+- The **Changes** column compares with the symbol's previous stored snapshot (arrow fired, layer 1 or layer 2 entered or left), so run the screener once per day after the close.
+- Click a symbol for the price chart with EMA9, SMA20, SMA200, layer 1 and 2 shading, arrows, a per-day state strip and a data table.
+- Re-running on the same as-of date overwrites that day's snapshot (the live bar can still move).
+
 ## Output columns
 
 | Column | Meaning |
